@@ -1,4 +1,5 @@
 #ALUNOS: Lucas Emanuel da Silva Costa e Ysabell Vaneires Souza
+from hash import gerar_hash
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -51,46 +52,127 @@ servicos = []
 
 # CRUD USUÁRIOS
 
-@app.post("/usuarios")
-def criar_usuario(usuario: Usuario):
-    usuarios.append(usuario)
+# ==========================
+# CRUD USUÁRIOS (ORM)
+# ==========================
+
+@app.post(
+    "/usuarios",
+    response_model=UsuarioSaida,
+    dependencies=[Depends(verificar_api_key)]
+)
+def criar_usuario(
+    usuario: UsuarioEntrada,
+    db: Session = Depends(get_db)
+):
+
+    senha_hash = gerar_hash(usuario.senha)
+
+    novo = models.Usuario(
+        nome=usuario.nome,
+        email=usuario.email,
+        senha=senha_hash,
+        cargo=usuario.cargo
+    )
+
+    db.add(novo)
+
+    db.commit()
+
+    db.refresh(novo)
+
+    return novo
+
+
+@app.get("/usuarios", response_model=list[UsuarioSaida])
+def listar_usuarios(db: Session = Depends(get_db)):
+
+    return db.query(models.Usuario).all()
+
+
+@app.get("/usuarios/{id}", response_model=UsuarioSaida)
+def buscar_usuario(
+    id: int,
+    db: Session = Depends(get_db)
+):
+
+    usuario = db.query(models.Usuario).filter(
+        models.Usuario.id == id
+    ).first()
+
+    if not usuario:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Usuário não encontrado"
+        )
+
     return usuario
 
 
-@app.get("/usuarios")
-def listar_usuarios():
-    return usuarios
+@app.put(
+    "/usuarios/{id}",
+    response_model=UsuarioSaida,
+    dependencies=[Depends(verificar_api_key)]
+)
+def atualizar_usuario(
+    id: int,
+    dados: UsuarioEntrada,
+    db: Session = Depends(get_db)
+):
+
+    usuario = db.query(models.Usuario).filter(
+        models.Usuario.id == id
+    ).first()
+
+    if not usuario:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Usuário não encontrado"
+        )
+
+    usuario.nome = dados.nome
+    usuario.email = dados.email
+    usuario.cargo = dados.cargo
+    usuario.senha = gerar_hash(dados.senha)
+
+    db.commit()
+
+    db.refresh(usuario)
+
+    return usuario
 
 
-@app.get("/usuarios/{usuario_id}")
-def buscar_usuario(usuario_id: int):
-    for usuario in usuarios:
-        if usuario.id == usuario_id:
-            return usuario
-    raise HTTPException(status_code=404, detail="Usuário não encontrado")
+@app.delete(
+    "/usuarios/{id}",
+    dependencies=[Depends(verificar_api_key)]
+)
+def remover_usuario(
+    id: int,
+    db: Session = Depends(get_db)
+):
 
+    usuario = db.query(models.Usuario).filter(
+        models.Usuario.id == id
+    ).first()
 
-@app.put("/usuarios/{usuario_id}")
-def atualizar_usuario(usuario_id: int, usuario_atualizado: Usuario):
-    for i, usuario in enumerate(usuarios):
-        if usuario.id == usuario_id:
-            usuarios[i] = usuario_atualizado
-            return usuario_atualizado
-    raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    if not usuario:
 
+        raise HTTPException(
+            status_code=404,
+            detail="Usuário não encontrado"
+        )
 
-@app.delete("/usuarios/{usuario_id}")
-def remover_usuario(usuario_id: int):
-    for usuario in usuarios:
-        if usuario.id == usuario_id:
-            usuarios.remove(usuario)
-            return {"mensagem": "Usuário removido"}
-    raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    db.delete(usuario)
 
+    db.commit()
+
+    return {"mensagem": "Usuário removido"}
 
 # CRUD CLIENTES
 
-@app.post("/clientes", response_model=ClienteSaida)(
+@app.post(
     "/clientes",
     response_model=ClienteSaida,
     dependencies=[Depends(verificar_api_key)]
@@ -128,7 +210,7 @@ def buscar_cliente(id: int, db: Session = Depends(get_db)):
     return cliente
 
 
-@app.put("/clientes/{id}", response_model=ClienteSaida)(
+@app.put(
     "/clientes/{id}",
     response_model=ClienteSaida,
     dependencies=[Depends(verificar_api_key)]
@@ -156,7 +238,7 @@ def atualizar_cliente(id: int,
     return cliente
 
 
-@app.delete("/clientes/{id}")(
+@app.delete(
     "/clientes/{id}",
     dependencies=[Depends(verificar_api_key)]
 )
@@ -215,7 +297,7 @@ def remover_servico(servico_id: int):
 
 # CRUD AGENDAMENTOS (ORM)
 
-@app.post("/agendamentos", response_model=AgendamentoSaida)(
+@app.post(
     "/agendamentos",
     response_model=AgendamentoSaida,
     dependencies=[Depends(verificar_api_key)]
@@ -254,7 +336,7 @@ def buscar_agendamento(id: int, db: Session = Depends(get_db)):
     return agendamento
 
 
-@app.put("/agendamentos/{id}", response_model=AgendamentoSaida)(
+@app.put(
     "/agendamentos/{id}",
     response_model=AgendamentoSaida,
     dependencies=[Depends(verificar_api_key)]
@@ -287,7 +369,7 @@ def atualizar_agendamento(
     return agendamento
 
 
-@app.delete("/agendamentos/{id}")(
+@app.delete(
     "/agendamentos/{id}",
     dependencies=[Depends(verificar_api_key)]
 )

@@ -1,5 +1,20 @@
 from pydantic import BaseModel
 
+class UsuarioEntrada(BaseModel):
+    nome: str
+    email: str
+    senha: str
+    cargo: str
+
+
+class UsuarioSaida(BaseModel):
+    id: int
+    nome: str
+    email: str
+    cargo: str
+
+    class Config:
+        from_attributes = True
 
 class ClienteEntrada(BaseModel):
     nome: str
