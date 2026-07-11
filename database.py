@@ -1,7 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from singleton import ConfigBanco
 
-DATABASE_URL = "sqlite:///./salao.db"
+config = ConfigBanco()
+
+DATABASE_URL = f"sqlite:///./{config.nome}"
 
 engine = create_engine(
     DATABASE_URL,

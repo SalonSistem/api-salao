@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from security import verificar_api_key
 from fastapi import Depends
+from factory import UsuarioFactory, ClienteFactory, AgendamentoFactory
 
 from database import SessionLocal, engine, Base
 
@@ -68,12 +69,7 @@ def criar_usuario(
 
     senha_hash = gerar_hash(usuario.senha)
 
-    novo = models.Usuario(
-        nome=usuario.nome,
-        email=usuario.email,
-        senha=senha_hash,
-        cargo=usuario.cargo
-    )
+    novo = UsuarioFactory.criar(usuario)
 
     db.add(novo)
 
@@ -179,7 +175,7 @@ def remover_usuario(
 )
 def criar_cliente(cliente: ClienteEntrada, db: Session = Depends(get_db)):
 
-    novo = models.Cliente(**cliente.model_dump())
+    novo = ClienteFactory.criar(cliente)
 
     db.add(novo)
 
@@ -307,7 +303,7 @@ def criar_agendamento(
     agendamento: AgendamentoEntrada,
     db: Session = Depends(get_db)
 ):
-    novo = models.Agendamento(**agendamento.model_dump())
+    novo = AgendamentoFactory.criar(agendamento)
 
     db.add(novo)
     db.commit()
