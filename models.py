@@ -1,50 +1,39 @@
-from pydantic import BaseModel
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
 
-# USUÁRIOS
-
-class UsuarioEntrada(BaseModel):
-    nome: str
-    email: str
-    senha: str
-    cargo: str
+from database import Base
 
 
-class Usuario(UsuarioEntrada):
-    id: int
+class Cliente(Base):
 
-# CLIENTES
+    __tablename__ = "clientes"
 
-class ClienteEntrada(BaseModel):
-    nome: str
-    telefone: str
-    email: str
+    id = Column(Integer, primary_key=True, index=True)
 
+    nome = Column(String, nullable=False)
 
-class Cliente(ClienteEntrada):
-    id: int
+    telefone = Column(String, nullable=False)
 
-# SERVIÇOS
+    email = Column(String, nullable=False)
 
-class ServicoEntrada(BaseModel):
-    nome: str
-    preco: float
-    duracao: int
-    ativo: bool
+    agendamentos = relationship("Agendamento", back_populates="cliente")
 
+class Agendamento(Base):
 
-class Servico(ServicoEntrada):
-    id: int
+    __tablename__ = "agendamentos"
 
-# AGENDAMENTOS
+    id = Column(Integer, primary_key=True, index=True)
 
-class AgendamentoEntrada(BaseModel):
-    cliente_id: int
-    usuario_id: int
-    servico_id: int
-    data: str
-    horario: str
-    status: str
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
 
+    usuario_id = Column(Integer, nullable=False)
 
-class Agendamento(AgendamentoEntrada):
-    id: int
+    servico_id = Column(Integer, nullable=False)
+
+    data = Column(String, nullable=False)
+
+    horario = Column(String, nullable=False)
+
+    status = Column(String, nullable=False)
+
+    cliente = relationship("Cliente", back_populates="agendamentos")

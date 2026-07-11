@@ -1,11 +1,34 @@
 #ALUNOS: Lucas Emanuel da Silva Costa e Ysabell Vaneires Souza
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from security import verificar_api_key
+from fastapi import Depends
+
+from database import SessionLocal, engine, Base
+
+import models
+
+from schemas import *
+
+Base.metadata.create_all(bind=engine)
+def get_db():
+
+    db = SessionLocal()
+
+    try:
+
+        yield db
+
+    finally:
+
+        db.close()
+
 
 app = FastAPI(title="Sistema de Gerenciamento para Salão de Beleza")
 
 # MODELOS 
+
 
 class Usuario(BaseModel):
     id: int
@@ -13,14 +36,6 @@ class Usuario(BaseModel):
     email: str
     senha: str
     cargo: str
-
-
-class Cliente(BaseModel):
-    id: int
-    nome: str
-    telefone: str
-    email: str
-
 
 class Servico(BaseModel):
     id: int
@@ -30,20 +45,8 @@ class Servico(BaseModel):
     ativo: bool = True
 
 
-class Agendamento(BaseModel):
-    id: int
-    cliente_id: int
-    servico_id: int
-    usuario_id: int
-    data: str
-    horario: str
-    status: str
-
-
 usuarios = []
-clientes = []
 servicos = []
-agendamentos = []
 
 
 # CRUD USUÁRIOS
@@ -87,43 +90,89 @@ def remover_usuario(usuario_id: int):
 
 # CRUD CLIENTES
 
-@app.post("/clientes")
-def criar_cliente(cliente: Cliente):
-    clientes.append(cliente)
+@app.post("/clientes", response_model=ClienteSaida)(
+    "/clientes",
+    response_model=ClienteSaida,
+    dependencies=[Depends(verificar_api_key)]
+)
+def criar_cliente(cliente: ClienteEntrada, db: Session = Depends(get_db)):
+
+    novo = models.Cliente(**cliente.model_dump())
+
+    db.add(novo)
+
+    db.commit()
+
+    db.refresh(novo)
+
+    return novo
+
+
+@app.get("/clientes", response_model=list[ClienteSaida])
+
+def listar_clientes(db: Session = Depends(get_db)):
+
+    return db.query(models.Cliente).all()
+
+
+@app.get("/clientes/{id}", response_model=ClienteSaida)
+
+def buscar_cliente(id: int, db: Session = Depends(get_db)):
+
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == id).first()
+
+    if not cliente:
+
+        raise HTTPException(404, "Cliente não encontrado")
+
     return cliente
 
 
-@app.get("/clientes")
-def listar_clientes():
-    return clientes
+@app.put("/clientes/{id}", response_model=ClienteSaida)(
+    "/clientes/{id}",
+    response_model=ClienteSaida,
+    dependencies=[Depends(verificar_api_key)]
+)
+def atualizar_cliente(id: int,
+                      dados: ClienteEntrada,
+                      db: Session = Depends(get_db)):
+
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == id).first()
+
+    if not cliente:
+
+        raise HTTPException(404, "Cliente não encontrado")
+
+    cliente.nome = dados.nome
+
+    cliente.telefone = dados.telefone
+
+    cliente.email = dados.email
+
+    db.commit()
+
+    db.refresh(cliente)
+
+    return cliente
 
 
-@app.get("/clientes/{cliente_id}")
-def buscar_cliente(cliente_id: int):
-    for cliente in clientes:
-        if cliente.id == cliente_id:
-            return cliente
-    raise HTTPException(status_code=404, detail="Cliente não encontrado")
+@app.delete("/clientes/{id}")(
+    "/clientes/{id}",
+    dependencies=[Depends(verificar_api_key)]
+)
+def remover_cliente(id: int, db: Session = Depends(get_db)):
 
+    cliente = db.query(models.Cliente).filter(models.Cliente.id == id).first()
 
-@app.put("/clientes/{cliente_id}")
-def atualizar_cliente(cliente_id: int, cliente_atualizado: Cliente):
-    for i, cliente in enumerate(clientes):
-        if cliente.id == cliente_id:
-            
-            clientes[i] = cliente_atualizado
-            return cliente_atualizado
-    raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    if not cliente:
 
+        raise HTTPException(404, "Cliente não encontrado")
 
-@app.delete("/clientes/{cliente_id}")
-def remover_cliente(cliente_id: int):
-    for cliente in clientes:
-        if cliente.id == cliente_id:
-            clientes.remove(cliente)
-            return {"mensagem": "Cliente removido"}
-    raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    db.delete(cliente)
 
+    db.commit()
+
+    return {"mensagem":"Cliente removido"}
 
 # CRUD SERVIÇOS
 
@@ -164,62 +213,135 @@ def remover_servico(servico_id: int):
     raise HTTPException(status_code=404, detail="Serviço não encontrado")
 
 
-# CRUD AGENDAMENTOS
+# CRUD AGENDAMENTOS (ORM)
 
-@app.post("/agendamentos")
-def criar_agendamento(agendamento: Agendamento):
-    agendamentos.append(agendamento)
+@app.post("/agendamentos", response_model=AgendamentoSaida)(
+    "/agendamentos",
+    response_model=AgendamentoSaida,
+    dependencies=[Depends(verificar_api_key)]
+)
+
+def criar_agendamento(
+    agendamento: AgendamentoEntrada,
+    db: Session = Depends(get_db)
+):
+    novo = models.Agendamento(**agendamento.model_dump())
+
+    db.add(novo)
+    db.commit()
+    db.refresh(novo)
+
+    return novo
+
+
+@app.get("/agendamentos", response_model=list[AgendamentoSaida])
+def listar_agendamentos(db: Session = Depends(get_db)):
+    return db.query(models.Agendamento).all()
+
+
+@app.get("/agendamentos/{id}", response_model=AgendamentoSaida)
+def buscar_agendamento(id: int, db: Session = Depends(get_db)):
+
+    agendamento = (
+        db.query(models.Agendamento)
+        .filter(models.Agendamento.id == id)
+        .first()
+    )
+
+    if not agendamento:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+
     return agendamento
 
 
-@app.get("/agendamentos")
-def listar_agendamentos():
-    return agendamentos
+@app.put("/agendamentos/{id}", response_model=AgendamentoSaida)(
+    "/agendamentos/{id}",
+    response_model=AgendamentoSaida,
+    dependencies=[Depends(verificar_api_key)]
+)
+def atualizar_agendamento(
+    id: int,
+    dados: AgendamentoEntrada,
+    db: Session = Depends(get_db)
+):
+
+    agendamento = (
+        db.query(models.Agendamento)
+        .filter(models.Agendamento.id == id)
+        .first()
+    )
+
+    if not agendamento:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+
+    agendamento.cliente_id = dados.cliente_id
+    agendamento.usuario_id = dados.usuario_id
+    agendamento.servico_id = dados.servico_id
+    agendamento.data = dados.data
+    agendamento.horario = dados.horario
+    agendamento.status = dados.status
+
+    db.commit()
+    db.refresh(agendamento)
+
+    return agendamento
 
 
-@app.get("/agendamentos/{agendamento_id}")
-def buscar_agendamento(agendamento_id: int):
-    for agendamento in agendamentos:
-        if agendamento.id == agendamento_id:
-            return agendamento
-    raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+@app.delete("/agendamentos/{id}")(
+    "/agendamentos/{id}",
+    dependencies=[Depends(verificar_api_key)]
+)
+def remover_agendamento(
+    id: int,
+    db: Session = Depends(get_db)
+):
+    agendamento = (
+        db.query(models.Agendamento)
+        .filter(models.Agendamento.id == id)
+        .first()
+    )
 
+    if not agendamento:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
 
-@app.put("/agendamentos/{agendamento_id}")
-def atualizar_agendamento(agendamento_id: int, agendamento_atualizado: Agendamento):
-    for i, agendamento in enumerate(agendamentos):
-        if agendamento.id == agendamento_id:
-            agendamentos[i] = agendamento_atualizado
-            return agendamento_atualizado
-    raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+    db.delete(agendamento)
+    db.commit()
 
-
-@app.delete("/agendamentos/{agendamento_id}")
-def remover_agendamento(agendamento_id: int):
-    for agendamento in agendamentos:
-        if agendamento.id == agendamento_id:
-            agendamentos.remove(agendamento)
-            return {"mensagem": "Agendamento removido"}
-    raise HTTPException(status_code=404, detail="Agendamento não encontrado")
-
+    return {"mensagem": "Agendamento removido"}
 
 # RELACIONAMENTOS
 
 @app.get("/clientes/{cliente_id}/agendamentos")
-def listar_agendamentos_cliente(cliente_id: int):
-    return [a for a in agendamentos if a.cliente_id == cliente_id]
+def listar_agendamentos_cliente(
+    cliente_id: int,
+    db: Session = Depends(get_db)
+):
+
+    return (
+        db.query(models.Agendamento)
+        .filter(models.Agendamento.cliente_id == cliente_id)
+        .all()
+    )
 
 
-@app.get("/usuarios/{usuario_id}/agendamentos")
-def listar_agendamentos_usuario(usuario_id: int):
-    return [a for a in agendamentos if a.usuario_id == usuario_id]
+# @app.get("/usuarios/{usuario_id}/agendamentos")
+# def listar_agendamentos_usuario(usuario_id: int):
+#     return [a for a in agendamentos if a.usuario_id == usuario_id]
 
 
-@app.get("/servicos/{servico_id}/agendamentos")
-def listar_agendamentos_servico(servico_id: int):
-    return [a for a in agendamentos if a.servico_id == servico_id]
+# @app.get("/servicos/{servico_id}/agendamentos")
+# def listar_agendamentos_servico(servico_id: int):
+#     return [a for a in agendamentos if a.servico_id == servico_id]
 
 
 @app.get("/agendamentos/data/{data}")
-def listar_agendamentos_por_data(data: str):
-    return [a for a in agendamentos if a.data == data]
+def listar_agendamentos_por_data(
+    data: str,
+    db: Session = Depends(get_db)
+):
+
+    return (
+        db.query(models.Agendamento)
+        .filter(models.Agendamento.data == data)
+        .all()
+    )
