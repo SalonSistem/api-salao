@@ -40,3 +40,9 @@ API desenvolvida para a disciplina de Projeto e Desenvolvimento de Software.
 ```bash
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+````
+## A documentação da API pode ser acessada em:
+
+```bash
+http://127.0.0.1:8000/docs
+````
