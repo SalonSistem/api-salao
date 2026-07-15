@@ -5,7 +5,7 @@ API desenvolvida para a disciplina de Projeto e Desenvolvimento de Software.
 ## Integrantes
 
 - Lucas Emanuel da Silva Costa
-- Ysabell Vaneires Souza
+- Ysabell Vaneires Ferreira Souza
 
 ## Tecnologias utilizadas
 
